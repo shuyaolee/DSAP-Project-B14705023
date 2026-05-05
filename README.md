@@ -23,8 +23,8 @@ While many basic implementations struggle with efficient back-and-forth navigati
 3. **Fisher-Yates Shuffle with Fairness Verificatio**: Implementing a robust randomized algorithm and conducting 1,000+ trial cycles to verify uniform distribution.
 
 4. **Performance Benchmarking**: A built-in test mode to compare execution times between the DLL approach and traditional Array-based methods.
-5. 
-6. **Multimedia Integration**: Automatically triggering a browser to play YouTube URLs via system calls.
+
+5. **Multimedia Integration**: Automatically triggering a browser to play YouTube URLs via system calls.
 
 ### 使用技術
 <!-- 使用的語言、框架、工具等 -->
