@@ -1,18 +1,33 @@
-# Smart Music Shuffle & Management System
-This project targets implementing a high-efficiency music management system using a Doubly Linked List to handle dynamic playlist operations. The main focus is to design and analyze a custom shuffle algorithm that ensures unbiased randomness while maintaining a pointer-based history for seamless navigation. This serves as a practical application of memory management and algorithmic complexity discussed in the DSAP course.
-
+# High-Efficiency Music Engine with Fairness Verification
 
 ## Proposal Report
 
 ### 動機與目標
 <!-- 說明為什麼想做這個專題 -->
+
 In the era of streaming services, users demand efficiency in managing large playlists. The core challenge is balancing "dynamic modification" (inserting/deleting songs) and "bi-directional navigation efficiency" after shuffling.
 
-While many basic implementations struggle with efficient back-and-forth navigation (Previous/Next) once a playlist is randomized, this project aims to:
+This project aims to simulate the underlying logic of a music player. By focusing on data structure efficiency rather than a complex GUI, I will explore how to manage memory and pointers to achieve O(1) time complexity for list operations and implement a robust shuffle algorithm. While many basic implementations struggle with efficient back-and-forth navigation (Previous/Next) once a playlist is randomized, this project aims to:
+
++ **Performance Analysis Comparison**: Implement a specific functional flow—"Random Shuffling and Instant Queue Insertion"—using two different data structures (Doubly Linked List vs. Array). We will conduct a practical performance analysis to evaluate their execution time and memory efficiency.
 
 + **Solve the Navigation Bottleneck**: Prove that a Doubly Linked List (DLL) is the optimal structure for *O*(1) constant-time "Previous Track" operations, whereas a Singly Linked List or Array would suffer from *O*(*n*) latency or high memory overhead in dynamic scenarios.
 
 + **Establish Verifiable Fairness**: Move beyond simple implementation by providing statistical proof that the shuffle algorithm achieves true, unbiased randomness.
+
+
+### 競品比較
+<!-- 比較目前已經存在可取得的類似工具或應用 -->
+
+Commercial music streaming apps (e.g., Spotify, Apple Music) offer comprehensive features but often consume significant system resources and utilize opaque shuffle algorithms.
+
+
+| Feature  | Commercial Apps | This System |
+| :-------------: | ------------- | ------------- |
+| **Resource Usage** | High (Heavy GUI, background tracking)  | Ultra-Low (CLI-based, pointer-level optimization)  |
+| **Shuffle Logic** | Opaque / Weighted (often feels repetitive)  | Transparent (True Fisher-Yates with statistical verification)  |
+| **Archutecture Transparency** | Black-box (User cannot see the quene logic)  | Data-Driven (Outputs visual performance metrics of DLL vs Array)  |
+
 
 ### 預期功能
 <!-- 列出預計實作的功能 -->
@@ -25,6 +40,7 @@ While many basic implementations struggle with efficient back-and-forth navigati
 4. **Performance Benchmarking**: A built-in test mode to compare execution times between the DLL approach and traditional Array-based methods.
 
 5. **Multimedia Integration**: Automatically triggering a browser to play YouTube URLs via system calls.
+
 
 ### 使用技術
 <!-- 使用的語言、框架、工具等 -->
@@ -41,25 +57,18 @@ While many basic implementations struggle with efficient back-and-forth navigati
 + **System Tools**: `stdlib.h` (`system()` function) for URL handling.
 
 
-### 時程規劃
-<!-- 各週預計完成的進度 -->
-+ **Week 7-8**: Define `struct Node` and implement basic DLL operations (Insert, Delete, Display).
+### Prototype 預計可驗證內容
 
-+ **Week 9-11**: Develop the Shuffle logic and the Statistical Testing Module to verify randomness.
+By the Prototype submission phase, the following core functionalities will be testable via the Command Line Interface (CLI):
 
-+ **Week 12-13**: Implement YouTube URL triggering and refine the CLI.
+1. **Data Loading & Construction**: Successfully read a `.txt` file containing 100+ songs (Title + URL) and construct both the Doubly Linked List and Array.
 
-+ **Week 14-15**: Compare DLL vs. Array performance with 1,000+ nodes and finalize the report.
+2. **Basic Navigation**: Users can input commands to trigger "Play Next" and "Play Previous," traversing the pointers correctly.
 
-### 與課程的關聯
-<!-- 你的專題可能涉及哪些資料結構或演算法概念？為什麼？ -->
-This project applies several fundamental concepts from the DSAP course:
+3. **The "Shuffle" Execution**: working command to execute the Fisher-Yates shuffle, displaying the playlist before and after the shuffle to verify pointer re-assignment.
 
-1. **Trade-off Analysis**: Deep dive into why DLL is superior to Arrays for high-frequency dynamic updates in music playlists.
+4. **Initial Performance Metric**: A built-in timer mechanism that outputs the microsecond execution time when a user inserts a new song into the list, providing the first set of comparative data between DLL and Array.
 
-2. **Pointer Integrity**: Managing complex pointer re-mapping during the shuffle process to avoid memory leaks or dangling pointers.
-
-3. **Empirical Complexity Analysis**: Moving from theoretical Big-O notation to practical execution time measurement and data-driven verification.
 
 ---
 
@@ -74,9 +83,6 @@ This project applies several fundamental concepts from the DSAP course:
 ### 下一步計畫
 <!-- 接下來要做什麼 -->
 
-### 與課程的關聯
-<!-- 到目前為止，你的實作中哪些部分與課程內容有關？關係是什麼？ -->
-
 ---
 
 ## Final Report
@@ -87,5 +93,3 @@ This project applies several fundamental concepts from the DSAP course:
 ### 使用方式
 <!-- 如何編譯、執行、使用你的程式 -->
 
-### 與課程的關聯總結
-<!-- 總結你的專題與進階程式設計及資料結構課程之間的關聯 -->
