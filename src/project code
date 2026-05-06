@@ -1,0 +1,180 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <ctime>
+#include <map>
+
+using namespace std;
+
+// Define the Node
+struct SongNode {
+    string title;
+    string url;
+    SongNode* prev; // pointer to the previous song
+    SongNode* next; // pointer to the next song
+
+    // constructor to create a new song
+    SongNode(string t, string u){
+        title = t;
+        url = u;
+        prev = nullptr;
+        next = nullptr;
+    }
+};
+
+// Define the engine
+class MusicEngine {
+private:
+    SongNode* head;
+    SongNode* tail;
+    SongNode* current; // Keeps track of what is currently playing
+    int songCount;
+
+public:
+    MusicEngine(){
+        head = nullptr;
+        tail = nullptr;
+        current = nullptr;
+        songCount = 0;
+    }
+
+    // [Add/Insert]: 在尾端新增歌曲
+    void addSong(string title, string url) {
+        SongNode* newNode = new SongNode(title, url);
+        
+        if (head == nullptr) {
+            // if the list is empty, this song is the head, tail, and current
+            head = tail = current = newNode;
+        }
+        else {
+            // link the new node to the end of the list
+            tail->next = newNode;
+            newNode->prev = tail;
+            tail = newNode; // update the tail pointer
+        }
+        songCount++;
+        cout << "Added to queue: " << title << endl;
+    }
+
+    // [Play]: 播放
+    void play() {
+        if (current) {
+            cout << "Now Playing: " << current->title << " [" << current->url << "]" <<endl;
+        }
+    }
+    
+    // [Next]: 播放前一首歌
+    void playNext() {
+        if (current && current->next) {
+            current = current->next;
+            cout << "Playing Next: " << current->title << endl;
+        } else {
+            cout << "End of playlist reached." << endl;
+        }
+    }
+    
+    // [Previous]: 播放下一首歌
+    void playPrev() {
+        if (current && current->prev) {
+            current = current->prev;
+            cout << "Playing Previous: " << current->title << endl;
+        } else {
+            cout << "Already at the first song." << endl;
+        }
+    }
+
+    // [Delete]: 刪除特定歌曲
+    void deleteSong(string title) {
+        SongNode* temp = head;
+        while (temp) {
+            if (temp->title == title) {
+                if (temp->prev) temp->prev->next = temp->next;
+                if (temp->next) temp->next->prev = temp->prev;
+                if (temp == head) head = temp->next;
+                if (temp == tail) tail = temp->prev;
+                if (temp == current) current = (temp->next) ? temp->next : head;
+                delete temp;
+                songCount--;
+                return;
+            }
+            temp = temp->next;
+        }
+    }
+    
+    // [Shuffle]: Fisher-Yates
+    void shuffle() {
+        if (songCount < 2) return;
+        
+        vector<SongNode*> nodes;
+        SongNode* temp = head;
+        while (temp) {
+            nodes.push_back(temp);
+            temp = temp->next;
+        }
+
+        for (int i = songCount - 1; i > 0; i--) {
+            int j = rand() % (i + 1);
+            swap(nodes[i], nodes[j]);
+        }
+
+        head = nodes[0];
+        head->prev = nullptr;
+        for (int i = 0; i < songCount - 1; i++) {
+            nodes[i]->next = nodes[i+1];
+            nodes[i+1]->prev = nodes[i];
+        }
+        tail = nodes[songCount - 1];
+        tail->next = nullptr;
+        current = head;
+        cout << "Playlist Shuffled Successfully." << endl;
+    }
+    
+    // Statistical Testing Module
+    void runStatisticalTest(int trials) {
+        cout << "\n--- Running Fairness Test (" << trials << " trials) ---" << endl;
+        map<string, int> firstSlotCount;
+        
+        for (int i = 0; i < trials; i++) {
+            shuffle();
+            firstSlotCount[head->title]++;
+        }
+        cout << "Probability of each song appearing at Slot 1:" << endl;
+        for (auto const& [title, count] : firstSlotCount) {
+            double prob = (double)count / trials * 100;
+            cout << "- " << title << ": " << prob << "%" << endl;
+        }
+    }
+};
+
+int main() {
+    MusicEngine myPlayer;
+    myPlayer.addSong("All Too Well", "url1");
+    myPlayer.addSong("Love Story", "url2");
+    myPlayer.addSong("Long Live", "url3");
+    myPlayer.addSong("Cornelia Street", "url4");
+    myPlayer.addSong("I Wish You Would", "url5");
+    myPlayer.addSong("Out of the Woods", "url6");
+    myPlayer.addSong("Enchanted", "url7");
+    myPlayer.addSong("Exile", "url8");
+    myPlayer.addSong("Mirrorball", "url9");
+    myPlayer.addSong("The Archer", "url10");
+    myPlayer.addSong("Treacherous", "url11");
+    myPlayer.addSong("Getaway Car", "url12");
+    myPlayer.addSong("Wonderland", "url13");
+    myPlayer.addSong("Style", "url14");
+    myPlayer.addSong("You’re on Your Own, Kid", "url15");
+    myPlayer.addSong("Mean", "url16");
+    myPlayer.addSong("Back to December", "url17");
+    myPlayer.addSong("Cruel Summer", "url18");
+    myPlayer.addSong("Haunted", "url19");
+    myPlayer.addSong("State of Grace", "url20");
+    
+    // 測試基礎播放
+    myPlayer.play();
+
+    // 測試洗牌與統計模組
+    myPlayer.runStatisticalTest(1000);
+
+    return 0;
+}
