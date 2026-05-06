@@ -53,7 +53,7 @@ Commercial music streaming apps (e.g., Spotify, Apple Music) offer comprehensive
   + **Stack**: To track "Play History," allowing users to undo shuffles or trace back through randomized sequences.
 
 + **Key Algorithm**: Fisher-Yates Shuffle (optimized for pointer re-mapping).
-+ 
+  
 + **System Tools**: `stdlib.h` (`system()` function) for URL handling.
 
 
@@ -76,6 +76,7 @@ By the Prototype submission phase, the following core functionalities will be te
 
 ### 目前進度
 <!-- 完成了什麼 -->
+
 
 ### 遇到的困難
 <!-- 遇到什麼問題、如何解決或打算如何解決 -->
