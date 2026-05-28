@@ -1,43 +1,41 @@
-# High-Efficiency Music Engine with Fairness Verification
+# [Urban Hidden Router: Multimodal Transit Engine based on Dijkstra's Algorithm]
 
 ## Proposal Report
 
 ### 動機與目標
 <!-- 說明為什麼想做這個專題 -->
-In the era of streaming services, users demand efficiency in managing large playlists. The core challenge is balancing "dynamic modification" (inserting/deleting songs) and "bi-directional navigation efficiency" after shuffling.
+In densely populated urban environments, commuters heavily rely on commercial navigation applications to manage complex, cross-modal transit routes (e.g., combining MRT, buses, YouBike, and walking). The core challenge in modern routing is balancing "server computing efficiency" and "route comprehensiveness."
 
-This project aims to simulate the underlying logic of a music player. By focusing on data structure efficiency rather than a complex GUI, I will explore how to manage memory and pointers to achieve O(1) time complexity for list operations and implement a robust shuffle algorithm. While many basic implementations struggle with efficient back-and-forth navigation (Previous/Next) once a playlist is randomized, this project aims to:
+This project aims to simulate the underlying logic of a multimodal transit routing engine. By focusing on graph traversal efficiency rather than a complex GUI, I will explore how to manage vertices and edges to uncover "hidden optimal routes" that commercial apps often skip due to heuristic pruning. While major mapping services struggle to provide deep, highly fragmented transit combinations, this project aims to:
 
-+ **Performance Analysis Comparison**: Implement a specific functional flow—"Random Shuffling and Instant Queue Insertion"—using two different data structures (Doubly Linked List vs. Array). We will conduct a practical performance analysis to evaluate their execution time and memory efficiency.
++ **Compare Performance Analysis**: Implement a specific algorithmic flow—"Minimum-Distance Node Extraction in Dijkstra's Algorithm"—using two different data structures (Min-Heap / Priority Queue vs. Unsorted Array). We will conduct a practical performance analysis to evaluate their execution time and CPU overhead under massive graph loads.
 
-+ **Solve the Navigation Bottleneck**: Prove that a Doubly Linked List (DLL) is the optimal structure for *O*(1) constant-time "Previous Track" operations, whereas a Singly Linked List or Array would suffer from *O*(*n*) latency or high memory overhead in dynamic scenarios.
++ **Solve the Heuristic Pruning Bottleneck**: Prove that an uncompromised, pure graph traversal can discover highly efficient multi-modal combinations (e.g., walking to a YouBike station to catch a specific bus) that commercial heuristic algorithms (like A*) often filter out to save memory.
 
-+ **Establish Verifiable Fairness**: Move beyond simple implementation by providing statistical proof that the shuffle algorithm achieves true, unbiased randomness.
++ **Establish Dynamic Weight Adaptations**: Move beyond static routing by allowing the system to instantly rebuild graph traversal logic based on user-defined priorities (Time-Optimized vs. Cost-Optimized), proving the flexibility of adjacency lists.
 
 
 ### 競品比較
 <!-- 比較目前已經存在可取得的類似工具或應用 -->
-Commercial music streaming apps (e.g., Spotify, Apple Music) offer comprehensive features but often consume significant system resources and utilize opaque shuffle algorithms.
+Commercial transit apps (e.g., Google Maps, Apple Maps) offer comprehensive geographical features but often utilize opaque, pruned routing algorithms that sacrifice optimal micro-transit combinations for faster server response times.
 
 
 | Feature  | Commercial Apps | This System |
 | :-------------: | ------------- | ------------- |
-| **Resource Usage** | High (Heavy GUI, background tracking)  | Ultra-Low (CLI-based, pointer-level optimization)  |
-| **Shuffle Logic** | Opaque / Weighted (often feels repetitive)  | Transparent (True Fisher-Yates with statistical verification)  |
-| **Archutecture Transparency** | Black-box (User cannot see the quene logic)  | Data-Driven (Outputs visual performance metrics of DLL vs Array)  |
+| **Routing Algorithm** | Heuristic / Pruned (A*, skips minor nodes) | Uncompromised Pure Dijkstra's Algorithm |
+| **Edge Processing** | Often restricted to 1 or 2 transit modes | Comprehensive Multi-Modal (Walk + Bike + Transit) |
+| **Architecture Transparency** | Black-box (User cannot see the traversal logic) | Data-Driven (Outputs visual performance metrics of Min-Heap vs Array) |
 
 
 ### 預期功能
 <!-- 列出預計實作的功能 -->
-1. **Dynamic Playlist Management**: Real-time insertion and deletion using DLL pointers to ensure zero-shift overhead.
+1. **Multi-Modal Graph Construction**: Real-time construction of a city transit network using an Adjacency List to ensure *O*(*V*+*E*) memory efficiency for sparse networks.
 
-2. **Seamless Bi-directional Navigation**: Utilizing `prev` and `next` pointers to allow instant track switching, even in a shuffled state.
+2. **Dynamic Weight Shifting**: Utilizing dual-weight edges to allow instant path recalculation when a user switches between "Shortest Time" and "Lowest Cost" modes.
 
-3. **Fisher-Yates Shuffle with Fairness Verificatio**: Implementing a robust randomized algorithm and conducting 1,000+ trial cycles to verify uniform distribution.
+3. **Deep Route Extraction**: Outputting clear, step-by-step cross-platform transit instructions, demonstrating the successful traversal of the graph.
 
-4. **Performance Benchmarking**: A built-in test mode to compare execution times between the DLL approach and traditional Array-based methods.
-
-5. **Multimedia Integration**: Automatically triggering a browser to play YouTube URLs via system calls.
+4. **Performance Benchmarking**: A built-in stress test mode to compare execution times and time complexity between the Min-Heap approach and traditional Array-based methods during node extraction.
 
 
 ### 使用技術
@@ -46,25 +44,27 @@ Commercial music streaming apps (e.g., Spotify, Apple Music) offer comprehensive
 
 + **Core Data Structures**:
 
-  + **Doubly Linked List**: Chosen specifically for *O*(1) bi-directional traversal and efficient node re-linking during shuffle.
+  + **Adjacency List (Graph)**: Chosen specifically for efficient memory utilization in sparse urban networks compared to Adjacency Matrices.
 
-  + **Stack**: To track "Play History," allowing users to undo shuffles or trace back through randomized sequences.
+  + **Min-Heap (Priority Queue)**: Implemented to optimize the node extraction phase in Dijkstra's algorithm, achieving *O*(*logV*) updates instead of *O*(*V*).
 
-+ **Key Algorithm**: Fisher-Yates Shuffle (optimized for pointer re-mapping).
+  + **Unsorted Array**: Utilized strictly as a baseline control structure for the performance benchmark.
+
++ **Key Algorithm**: Dijkstra's Shortest Path Algorithm (optimized for dynamic weight re-mapping).
   
-+ **System Tools**: `stdlib.h` (`system()` function) for URL handling.
++ **System Tools**: Standard C++ libraries (`<chrono>` for microsecond-level benchmarking, `<vector>`, `<queue>`).
 
 
 ### Prototype 預計可驗證內容
 By the Prototype submission phase, the following core functionalities will be testable via the Command Line Interface (CLI):
 
-1. **Data Loading & Construction**: Successfully read a `.txt` file containing 100+ songs (Title + URL) and construct both the Doubly Linked List and Array.
+1. **Graph Construction & Data Loading**: Successfully construct the Adjacency List representing a micro-network of 20+ known Taipei transit hubs and interconnected routes.
 
-2. **Basic Navigation**: Users can input commands to trigger "Play Next" and "Play Previous," traversing the pointers correctly.
+2. **Basic Shortest Path Execution**: Users can input a starting node and destination node, and the system will traverse the graph to output the optimal multi-modal route.
 
-3. **The "Shuffle" Execution**: working command to execute the Fisher-Yates shuffle, displaying the playlist before and after the shuffle to verify pointer re-assignment.
+3. **Priority Mode Switching**: A working command to switch the graph's weight parameters (Time vs. Cost) and output the correspondingly altered route to verify dynamic edge evaluation.
 
-4. **Initial Performance Metric**: A built-in timer mechanism that outputs the microsecond execution time when a user inserts a new song into the list, providing the first set of comparative data between DLL and Array.
+4. **Initial Performance Metric**: A built-in timer mechanism that automatically generates a synthetic graph of 5,000+ nodes, outputting the microsecond execution time of the shortest-path calculation, providing the first set of comparative data between Min-Heap and Array.
 
 
 ---
@@ -73,29 +73,27 @@ By the Prototype submission phase, the following core functionalities will be te
 
 ### 目前進度
 <!-- 完成了什麼 -->
-+ **Data Structure Implementation**: Successfully defined the `SongNode` structure with bi-directional pointers (`prev` and `next`), ensuring *O*(1) time complexity for navigation operations.
++ **Graph Data Structure Implementation**: Successfully defined the `Edge` and `Station` structures. Implemented the Adjacency List using `std::unordered_map` and `std::vector`, ensuring optimal *O*(*V*+*E*) memory utilization, which is crucial for representing sparse urban transit networks.
 
-+ **Core Engine Functionality**: Implemented the `MusicEngine` class with essential dynamic management features, including adding songs (`addSong`), deleting songs (`deleteSong`), and bi-directional navigation (`playNext`, `playPrev`).
++ **Multi-Modal Edge Definition**: Engineered the Edge struct to hold multiple weight parameters (`timeCost`, `financialCost`) and `transitMode` (e.g., Walk, MRT, YouBike). This allows the graph to support dynamic weight shifting based on user preference.
 
-+ **Fisher-Yates Shuffle Mechanism**: Completed the shuffle algorithm using a "pointer-to-vector" transition strategy. By temporarily storing node pointers in a `std::vector`, the system utilizes *O*(1) random access to perform the shuffle in O(n) time before rebuilding the linked list structure.
-
-+ **Statistical Testing Module**: Developed the `runStatisticalTest` module. It executes 1,000 shuffle trials and calculates the probability distribution of songs appearing in the first slot to scientifically prove the algorithm is unbiased.
++ **Core Routing Engine (Min-Heap Dijkstra)**: Implemented the primary shortest-path algorithm utilizing C++'s `std::priority_queue` (acting as a Min-Heap). The engine can successfully traverse the adjacency list and extract the optimal route based on the selected weight parameter in *O*((*V*+*E*)*logV*) time.
 
 ### 遇到的困難
 <!-- 遇到什麼問題、如何解決或打算如何解決 -->
-+ **Pointer Integrity during Deletion**: Initially, deleting the `current` song node caused the pointer to point to invalid memory (Segmentation Fault).
-    + **Solution**: Added conditional logic to check if the node being deleted is the `current` node. If so, the system automatically shifts the `current` pointer to the next song or resets it to the `head`.
++ **The `decrease-key` Limitation in C++ Priority Queue**: Standard C++ `std::priority_queue` does not support a direct `decrease-key` operation to update node weights dynamically during Dijkstra's traversal.
+    + **Solution**: Adopted the "Lazy Deletion" (or Visited Set) approach. Instead of updating existing nodes in the heap, the system pushes duplicate nodes with smaller distances and utilizes a boolean `visited` map to simply ignore outdated, higher-distance nodes when they are popped.
 
-+ **Boundary Resetting Post-Shuffle**: Shuffling involves complex re-linking of memory addresses. Failure to reset boundary pointers led to infinite loops or crashes.
++ **Dynamic Weight Re-evaluation**: Implemented a state flag (`isTimeOptimized`) that is passed into the priority queue's custom comparator. This allows the same graph in memory to be evaluated differently in real-time without duplicating data.
     + **Solution**: Manually enforced `head->prev = nullptr` and `tail->next = nullptr` at the end of the shuffle function to ensure the structural integrity of the Doubly Linked List.
 
 ### 下一步計畫
 <!-- 接下來要做什麼 -->
-+ **Performance Benchmarking**: The next phase involves implementing an Array-based version of the shuffle and insertion logic. I will use the `<chrono>` library to record actual CPU execution time (in microseconds) to compare the performance between DLL and Array structures when handling 10,000+ data entries.
++ **Baseline Performance Benchmarking (Array implementation)**: The next critical phase is writing the "Unsorted Array" version of the node-extraction phase. I will integrate the `<chrono>` library to record the CPU execution time (in milliseconds) to formally compare the Array vs. Min-Heap performance.
 
-+ **File I/O Integration**: Develop a function to read song data (Title and URL) from an external `.txt` file rather than hard-coding, simulating a real-world software environment.
++ **Synthetic Graph Generator**: Develop a data generation loop to randomly create a massive stress-test network consisting of 10,000 virtual stations and 50,000 interconnecting edges for the performance benchmark.
 
-+ **Multimedia Linkage**: Finalize the `system()` call verification to ensure the engine correctly triggers a web browser to play the corresponding YouTube URL based on the song's data.
++ **Path Tracing & CLI Development**: Currently, the engine calculates the shortest distance but does not print the step-by-step route. I will implement a `previous_node` tracking map to allow backtracking and output a clear, user-friendly navigation instruction set via the Command Line Interface.
 
 
 ---
