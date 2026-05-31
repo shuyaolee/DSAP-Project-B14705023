@@ -113,7 +113,36 @@ By the Prototype phase, the following core functionalities will be fully testabl
 
 ### 專案說明
 <!-- 完整描述你的專案做了什麼 -->
+The Taipei Urban Hidden Router is a robust, C++ based multimodal transit routing engine designed to overcome the heuristic pruning limitations commonly found in commercial navigation applications. By focusing strictly on a localized metropolitan scale (Taipei City), the system leverages an uncompromised Min-Heap Dijkstra's algorithm running on a highly efficient Adjacency List to uncover absolute mathematically optimal routes across various transit modes (MRT, Bus, YouBike, and Walking).
+Throughout the development lifecycle, this project successfully evolved from a static conceptual model into a fully decoupled, dynamic routing architecture. Key achievements of the final system include:
+
++ **Dynamic Multi-Dimensional Routing**: The engine seamlessly shifts between optimizing for Shortest Time, Minimum Transfers (via dynamic penalty injection), and Lowest Cost. Notably, the cost-optimization mode implements a sophisticated State-Space Search, allowing the algorithm to memorize continuous MRT stations traveled to perfectly simulate real-world zonal step-pricing.
+
++ **Path Compression & UX Optimization**: A reverse-engineered parent-pointer tracking mechanism automatically collapses redundant intermediate stops on the same transit line, outputting clean, commercial-grade navigation instructions via the Command Line Interface (CLI).
+
++ **Data Decoupling & File I/O Integration**: The system's graph logic is completely decoupled from the transit data. It utilizes C++ File I/O to parse external `.csv` configuration files, allowing users to dynamically load, modify, and expand the urban network without altering the core source code.
+
++ **Resiliency & Disruption Simulation**: The engine supports real-time edge disruption (e.g., simulating a sudden MRT suspension). Upon disruption, the algorithm dynamically recalculates and instantly provides alternative cross-modal bypass routes.
+
++ **Automated Benchmarking & Reporting**: To empirically prove the architectural superiority of the chosen data structures, the system features a built-in synthetic stress-testing module. It automatically generates up to 15,000 virtual nodes, pits a baseline Unsorted Array (${O(V^2)}$)against the Min-Heap (${O((V+E)logV)}$), and exports the microsecond-level execution data directly to a `.csv` file for subsequent complexity curve visualization.
 
 ### 使用方式
 <!-- 如何編譯、執行、使用你的程式 -->
+1. **Environment Requirements & Compilation**
+    + The source code (`main.cpp`) is written in Standard C++ and requires a compiler supporting C++11 or higher (e.g., GCC, Clang, or IDEs like Xcode / Visual Studio).
+    + To compile via terminal:
+      `g++ main.cpp -o router -std=c++14`
 
+2. **Execution & Data Loading**
+    + **Custom Network Loading (Optional)**: Place a valid transit configuration file named `routes.csv` (containing columns: Start, End, Time, Cost, Transit_Mode) in the exact same directory as the executable.
+    + Run the compiled program. If the external `.csv` is detected, the engine will parse and build the graph dynamically; otherwise, it will safely fallback to the built-in "Taipei Micro-Universe" default dataset.
+
+3. **Interactive CLI Demonstrations**
+Upon execution, the program will automatically run through a series of predefined demonstrations in the Command Line Interface:
+    + **Demo 1 (Normal Routing)**: Extracts the optimal paths based on Time, Transfers, and Cost strategies.
+    + **Demo 2 (Disruption Rerouting)**: Simulates a sudden suspension on the MRT Green Line and visibly outputs the engine's dynamic bypass route.
+    + **Demo 3 (Stress-Test Benchmarking)**: The system will silently generate massive virtual graphs, scaling from 1,000 to 15,000 nodes, logging the CPU execution time for both Array and Min-Heap implementations.
+
+4. **Automated Output Retrieval**
+    + Utilizing cross-platform preprocessor macros (`#ifdef _WIN32` / `#elif __APPLE__`), the program will automatically trigger the host OS (Windows Explorer or macOS Finder) to open the specific hidden directory containing the freshly generated `performance_report.csv` immediately upon completion.
+    + Users can directly open this output file in Excel or Numbers to visualize the algorithmic time complexity curves.
