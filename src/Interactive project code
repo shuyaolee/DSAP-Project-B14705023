@@ -1,0 +1,437 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <queue>
+#include <limits>
+#include <chrono>
+#include <algorithm>
+#include <random>
+#include <fstream>
+#include <sstream>
+
+using namespace std;
+using namespace std::chrono;
+
+// 系統常數設定
+const int INF = numeric_limits<int>::max();
+const int BLOCKED = 999999; // 路線阻斷時的極大代價 (避免 INF 溢位)
+const int TRANSFER_PENALTY = 15;
+
+// 1. 定義「邊」(Edge)
+struct Edge {
+    string destination;
+    int timeCost;
+    int financialCost;
+    string transitMode;
+
+    Edge(string dest, int time, int money, string mode)
+        : destination(dest), timeCost(time), financialCost(money), transitMode(mode) {}
+};
+
+// 2. 狀態節點
+struct PQNode {
+    string stationName;
+    int currentWeight;
+    string arrivedMode;
+    int mrtStationCount;
+
+    PQNode(string name, int weight, string mode, int mrtCount = 0)
+        : stationName(name), currentWeight(weight), arrivedMode(mode), mrtStationCount(mrtCount) {}
+
+    bool operator>(const PQNode& other) const {
+        return currentWeight > other.currentWeight;
+    }
+};
+
+// 3. 核心導航引擎
+class UrbanHiddenRouter {
+private:
+    unordered_map<string, vector<Edge>> adjacencyList;
+
+public:
+    void addRoute(string src, string dest, int time, int money, string mode) {
+        adjacencyList[src].push_back(Edge(dest, time, money, mode));
+        adjacencyList[dest].push_back(Edge(src, time, money, mode));
+    }
+
+    // 外部資料設定檔解析器 (File I/O)
+    void loadGraphFromCSV(string filename) {
+        ifstream file(filename);
+        if (!file.is_open()) {
+            cout << "WARNING: 找不到 " << filename << "，請確認檔案存在。系統將使用預設的微縮路網。\n";
+            return;
+        }
+
+        string line, src, dest, time_str, money_str, mode;
+        getline(file, line); // 跳過標題列
+        
+        while (getline(file, line)) {
+            stringstream ss(line);
+            getline(ss, src, ',');
+            getline(ss, dest, ',');
+            getline(ss, time_str, ',');
+            getline(ss, money_str, ',');
+            getline(ss, mode, ',');
+            addRoute(src, dest, stoi(time_str), stoi(money_str), mode);
+        }
+        cout << "成功從 " << filename << " 載入外部路網資料！\n";
+    }
+
+    // 突發事件路網阻斷模擬
+    void disruptEdge(string src, string dest) {
+        cout << "\n[系統嘗試] 正在尋找 " << src << " 到 " << dest << " 的連線...\n";
+        bool isFound = false; // 追蹤是否有找到這條路線
+        
+        for (auto& edge : adjacencyList[src]) {
+            if (edge.destination == dest) {
+                edge.timeCost = BLOCKED;
+                edge.financialCost = BLOCKED;
+                isFound = true; // 成功找到了！
+            }
+        }
+        for (auto& edge : adjacencyList[dest]) {
+            if (edge.destination == src) {
+                edge.timeCost = BLOCKED;
+                edge.financialCost = BLOCKED;
+                isFound = true;
+            }
+        }
+
+        // 偵測回報
+        if (isFound) {
+            cout << "成功封鎖路線！\n\n";
+        } else {
+            cout << "[警告] 阻斷失敗！找不到這兩個站點的連線。請檢查站名是否有錯字或隱形空白。\n\n";
+        }
+    }
+
+    // 內建的台大公館微縮路網 (如果沒有 CSV 檔就用這個)
+    void buildMicroUniverse() {
+        // 1. 捷運 (細分路線)
+        // 藍線 (板南線)
+        addRoute("西門", "台北車站", 3, 20, "MRT_板南線");
+            
+        // 紅線 (淡水信義線)
+        addRoute("台北車站", "台大醫院", 2, 20, "MRT_淡水信義線");
+        addRoute("台大醫院", "中正紀念堂", 2, 20, "MRT_淡水信義線");
+        addRoute("中正紀念堂", "東門", 3, 20, "MRT_淡水信義線"); // 新增紅線過站
+        addRoute("東門", "大安森林公園", 2, 20, "MRT_淡水信義線");
+        addRoute("大安森林公園", "大安", 2, 20, "MRT_淡水信義線");
+            
+        // 綠線 (松山新店線)
+        addRoute("西門", "小南門", 2, 20, "MRT_松山新店線");
+        addRoute("小南門", "中正紀念堂", 2, 20, "MRT_松山新店線");
+        addRoute("中正紀念堂", "古亭", 2, 20, "MRT_松山新店線");
+        addRoute("古亭", "台電大樓", 2, 20, "MRT_松山新店線");
+        addRoute("台電大樓", "公館", 2, 20, "MRT_松山新店線");
+
+        // 棕線 (文湖線)
+        addRoute("大安", "科技大樓", 2, 20, "MRT_文湖線");
+        addRoute("科技大樓", "六張犁", 2, 20, "MRT_文湖線");
+
+        // 2. 微型節點與隱藏路網 (Walk / YouBike)
+        addRoute("西門", "植物園", 5, 0, "Walk");
+        addRoute("植物園", "建國中學", 2, 0, "Walk");
+        addRoute("建國中學", "公館", 12, 10, "YouBike");
+        
+        addRoute("公館", "台大管院", 5, 0, "Walk");
+        addRoute("中正紀念堂", "台大管院", 15, 10, "YouBike");
+
+        addRoute("台大管院", "科技大樓", 8, 10, "YouBike");
+        addRoute("台大管院", "基隆長興街口", 10, 0, "Walk");
+        addRoute("基隆長興街口", "六張犁", 7, 10, "YouBike");
+
+        addRoute("公館", "溫州街口", 5, 0, "Walk");
+        addRoute("溫州街口", "大安森林公園", 10, 10, "YouBike");
+        addRoute("台電大樓", "師大夜市", 5, 0, "Walk");
+        addRoute("師大夜市", "古亭", 8, 0, "Walk");
+        
+        // 3. 公車直達
+        addRoute("西門", "公館", 35, 15, "Bus_253");
+        addRoute("台北車站", "公館", 25, 15, "Bus_羅斯福路幹線");
+        addRoute("公館", "六張犁", 15, 15, "Bus_基隆路幹線");
+        addRoute("公館", "科技大樓", 12, 15, "Bus_復興幹線");
+        addRoute("大安", "台北車站", 20, 15, "Bus_信義幹線");
+        
+        // 4. 公車轉乘
+        addRoute("台北車站", "中正紀念堂", 5, 15, "Bus_羅斯福路幹線");
+        addRoute("中正紀念堂", "羅斯福和平路口", 6, 0, "Bus_羅斯福路幹線"); //繼續搭同一台不用多付錢，設為 0 元
+        addRoute("羅斯福和平路口", "公館", 8, 0, "Bus_羅斯福路幹線");
+        
+        addRoute("科技大樓", "大安森林公園", 8, 15, "Bus_和平幹線");
+        addRoute("大安森林公園", "羅斯福和平路口", 6, 0, "Bus_和平幹線");
+        addRoute("羅斯福和平路口", "古亭", 3, 0, "Bus_和平幹線");
+
+        // 在轉車時的步行 (下公車走去捷運站或借腳踏車)
+        addRoute("羅斯福和平路口", "師大夜市", 4, 0, "Walk");
+    }
+
+
+    // 核心導航演算法 (包含所有動態權重與路徑壓縮)
+    void findOptimalRoute(string start, string end, int optimizationMode) {
+        unordered_map<string, int> minWeight;
+        unordered_map<string, string> parentStation;
+        unordered_map<string, string> parentMode;
+        
+        for (auto const& pair : adjacencyList) minWeight[pair.first] = INF;
+        
+        priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
+        minWeight[start] = 0;
+        minHeap.push(PQNode(start, 0, "START"));
+        
+        cout << "[開始導航] " << start << " -> " << end << "\n";
+        cout << "演算法策略: ";
+        if (optimizationMode == 0) cout << "最省時間 (Shortest Time)\n";
+        else if (optimizationMode == 1) cout << "最少轉乘 (Minimum Transfers)\n";
+        else if (optimizationMode == 2) cout << "最省錢 (Lowest Cost)\n";
+        cout << "----------------------------------------------------\n";
+
+        while (!minHeap.empty()) {
+            PQNode current = minHeap.top();
+            minHeap.pop();
+            
+            string u = current.stationName;
+            if (u == end) break;
+            if (current.currentWeight > minWeight[u]) continue;
+            
+            for (const Edge& edge : adjacencyList[u]) {
+                string v = edge.destination;
+                int evaluateWeight = 0;
+                int nextMrtCount = 0;
+                
+                // 最省錢模式 (階梯計價)
+                if (optimizationMode == 2) {
+                    if (edge.timeCost >= BLOCKED) {
+                        // 如果這條路已經被阻斷，絕對不能重算票價，直接維持阻斷狀態！
+                        evaluateWeight = BLOCKED;
+                        nextMrtCount = 0;
+                    }
+                    else if (edge.transitMode.find("MRT") != string::npos) {
+                        if (current.arrivedMode.find("MRT") == string::npos) {
+                            evaluateWeight = 20;
+                            nextMrtCount = 1;
+                        } else {
+                            nextMrtCount = current.mrtStationCount + 1;
+                            evaluateWeight = (nextMrtCount % 3 == 1) ? 5 : 0;
+                        }
+                    } else {
+                        evaluateWeight = edge.financialCost;
+                        nextMrtCount = 0;
+                    }
+                }
+                // 最省時間 / 最少轉乘
+                else {
+                    evaluateWeight = edge.timeCost;
+                    if (optimizationMode == 1 && current.arrivedMode != "START" && current.arrivedMode != edge.transitMode) {
+                        evaluateWeight += TRANSFER_PENALTY;
+                    }
+                }
+                
+                int newWeight = minWeight[u] + evaluateWeight;
+                if (newWeight < minWeight[v]) {
+                    minWeight[v] = newWeight;
+                    parentStation[v] = u;
+                    parentMode[v] = edge.transitMode;
+                    minHeap.push(PQNode(v, newWeight, edge.transitMode, nextMrtCount));
+                }
+            }
+        }
+        
+        // 輸出：路徑壓縮折疊機制
+        if (minWeight[end] == INF || minWeight[end] >= BLOCKED) {
+            cout << "找不到路線，目的地可能已被阻斷！\n\n";
+            return;
+        }
+        
+        vector<string> routeNodes, routeModes;
+        string curr = end;
+        while (curr != start) {
+            routeNodes.push_back(curr);
+            routeModes.push_back(parentMode[curr]);
+            curr = parentStation[curr];
+        }
+        routeNodes.push_back(start);
+        
+        reverse(routeNodes.begin(), routeNodes.end());
+        reverse(routeModes.begin(), routeModes.end());
+
+        cout << "最佳路線：\n";
+        string segmentStart = routeNodes[0];
+        string currentMode = routeModes[0];
+
+        for (size_t i = 1; i < routeNodes.size(); i++) {
+            if (i == routeNodes.size() - 1 || routeModes[i] != currentMode) {
+                cout << "   [" << segmentStart << "] --(" << currentMode << ")--> [" << routeNodes[i] << "]\n";
+                segmentStart = routeNodes[i];
+                if (i < routeNodes.size() - 1) currentMode = routeModes[i];
+            }
+        }
+        cout << "（總代價: " << minWeight[end] << (optimizationMode == 2 ? " 元）\n\n" : " 分鐘/懲罰分數）\n\n");
+    }
+
+    // 自動化數據採集與匯出 CSV
+    void generateSyntheticGraph(int numStations, int numEdges) {
+        adjacencyList.clear();
+        for (int i = 0; i < numEdges; i++) {
+            string src = "V_" + to_string(rand() % numStations);
+            string dest = "V_" + to_string(rand() % numStations);
+            if (src != dest) addRoute(src, dest, rand() % 30 + 1, rand() % 50 + 10, "Virtual");
+        }
+    }
+
+    long long benchmarkArray(string start) {
+        unordered_map<string, int> minWeight;
+        unordered_map<string, bool> visited;
+        for (auto const& pair : adjacencyList) { minWeight[pair.first] = INF; visited[pair.first] = false; }
+        minWeight[start] = 0;
+
+        auto startTime = high_resolution_clock::now();
+        for (size_t i = 0; i < adjacencyList.size(); i++) {
+            string u = "";
+            int minVal = INF;
+            for (auto const& pair : minWeight) {
+                if (!visited[pair.first] && pair.second < minVal) { minVal = pair.second; u = pair.first; }
+            }
+            if (u == "" || minVal == INF) break;
+            visited[u] = true;
+            for (const Edge& edge : adjacencyList[u]) {
+                if (!visited[edge.destination] && minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
+                    minWeight[edge.destination] = minWeight[u] + edge.timeCost;
+                }
+            }
+        }
+        auto stopTime = high_resolution_clock::now();
+        return duration_cast<milliseconds>(stopTime - startTime).count();
+    }
+
+    long long benchmarkHeap(string start) {
+        unordered_map<string, int> minWeight;
+        for (auto const& pair : adjacencyList) minWeight[pair.first] = INF;
+        priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
+        minWeight[start] = 0;
+        minHeap.push(PQNode(start, 0, "START"));
+
+        auto startTime = high_resolution_clock::now();
+        while (!minHeap.empty()) {
+            PQNode current = minHeap.top();
+            minHeap.pop();
+            string u = current.stationName;
+            if (current.currentWeight > minWeight[u]) continue;
+            for (const Edge& edge : adjacencyList[u]) {
+                if (minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
+                    minWeight[edge.destination] = minWeight[u] + edge.timeCost;
+                    minHeap.push(PQNode(edge.destination, minWeight[edge.destination], edge.transitMode));
+                }
+            }
+        }
+        auto stopTime = high_resolution_clock::now();
+        return duration_cast<milliseconds>(stopTime - startTime).count();
+    }
+
+    void exportBenchmarkData(string filename) {
+        ofstream file("/Users/leeshuyao/Desktop/" + filename);
+        file << "Nodes,Edges,ArrayTime_ms,MinHeapTime_ms\n";
+        cout << "\n【壓力測試】 開始執行多樣本數據採集，並匯出至 " << filename << "。\n";
+        
+        // 從 1000 點一路測到 15000 點 (考量電腦效能，間隔 2000)
+        for (int nodes = 1000; nodes <= 15000; nodes += 2000) {
+            int edges = nodes * 5;
+            generateSyntheticGraph(nodes, edges);
+            
+            long long arrayTime = benchmarkArray("V_0");
+            long long heapTime = benchmarkHeap("V_0");
+            
+            file << nodes << "," << edges << "," << arrayTime << "," << heapTime << "\n";
+            cout << "   測試完成: " << nodes << " 節點 | Array: " << arrayTime << " ms | Heap: " << heapTime << " ms\n";
+        }
+        cout << "效能數據已成功匯出！\n====================================================\n";
+    }
+};
+
+// 4. 互動式主程式執行流 (Interactive CLI)
+int main() {
+    UrbanHiddenRouter engine;
+    cout << "\n====================================================\n";
+    cout << "Welcome to Taipei Urban Hidden Router\n";
+    cout << "====================================================\n";
+
+    // 1. 詢問使用者是否要載入外部 CSV
+    char useCSV;
+    cout << "請問是否要載入外部 CSV 路網設定檔？(y/n): ";
+    cin >> useCSV;
+
+    if (useCSV == 'y' || useCSV == 'Y') {
+        string filename;
+        cout << "請輸入 CSV 檔案名稱 (包含副檔名，例如 routes.csv): ";
+        cin >> filename;
+        engine.loadGraphFromCSV(filename);
+    } else {
+        cout << "使用系統內建台北交通路網\n";
+        engine.buildMicroUniverse();
+    }
+
+    // 2. 啟動互動式主選單 (無窮迴圈，直到使用者選擇離開)
+    while (true) {
+        cout << "\n==================== MENU ====================\n";
+        cout << " 1. 規劃導航路線 (可自訂起訖點與權重策略)\n";
+        cout << " 2. 模擬突發路網阻斷 (動態改變路網狀態)\n";
+        cout << " 3. 執行系統效能壓力測試 (匯出 CSV 報表)\n";
+        cout << " 4. 離開系統\n";
+        cout << "====================================================\n";
+        
+        int choice;
+        cout << "請輸入執行選項 (1-4): ";
+        cin >> choice;
+
+        if (choice == 1) {
+            string start, end;
+            int mode;
+            cout << "\n--- 路線規劃 ---\n";
+            cout << "請輸入【起點】站名 (例如: 西門): ";
+            cin >> start;
+            cout << "請輸入【終點】站名 (例如: 台大管院): ";
+            cin >> end;
+            cout << "請選擇【導航策略】(0: 最省時間, 1: 最少轉乘次數, 2: 最省錢): ";
+            cin >> mode;
+            
+            // 將使用者輸入的變數直接丟給寫好的引擎
+            engine.findOptimalRoute(start, end, mode);
+        }
+        else if (choice == 2) {
+            string src, dest;
+            cout << "\n--- 路網阻斷模擬 ---\n";
+            cout << "請輸入發生事故的【起點】站名: ";
+            cin >> src;
+            cout << "請輸入發生事故的【終點】站名: ";
+            cin >> dest;
+            engine.disruptEdge(src, dest);
+            cout << "路網狀態已更新！您可以重新選擇 [1] 規劃路線來查看演算法如何繞路。\n";
+        }
+        else if (choice == 3) {
+            string filename;
+            cout << "\n--- 效能壓力測試 ---\n";
+            cout << "請輸入要匯出的檔名 (例如 report.csv): ";
+            cin >> filename;
+            engine.exportBenchmarkData(filename);
+            
+            // 跨平台打開資料夾魔法
+            #ifdef _WIN32
+                system("explorer .");
+            #elif __APPLE__
+                system("open .");
+            #else
+                cout << "請前往程式執行的目錄尋找檔案\n";
+            #endif
+        }
+        else if (choice == 4) {
+            cout << "\n感謝使用，系統關閉，再見！\n";
+            break; // 打破迴圈，結束程式
+        }
+        else {
+            cout << "無效的輸入，請重新選擇！\n";
+        }
+    }
+
+    return 0;
+}
