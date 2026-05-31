@@ -4,7 +4,7 @@
 
 ### 動機與目標
 <!-- 說明為什麼想做這個專題 -->
-In densely populated urban environments like Taipei City, commuters heavily rely on commercial navigation applications to manage complex, cross-modal transit routes (e.g., combining MRT, buses, YouBike, and walking). The core challenge in modern routing is balancing "server computing efficiency" and "route comprehensiveness". While other applications on the market highlight the former feature, we would like to try to fucus on the latter one.
+In densely populated urban environments like Taipei City, commuters heavily rely on commercial navigation applications to manage complex, cross-modal transit routes (e.g., combining MRT, buses, YouBike, and walking). The core challenge in modern routing is balancing "server computing efficiency" and "route comprehensiveness". While other applications on the market highlight the former feature, we would like to try to focus on the latter one.
 
 This project aims to propose an optimized implementation of a multimodal transit routing engine that challenges the limitations of commercial applications. By focusing on graph traversal efficiency and data structure optimization rather than a complex GUI, this project demonstrates how an uncompromised routing approach can efficiently uncover the "hidden optimal routes" that commercial apps prematurely discard due to aggressive heuristic pruning.
 
