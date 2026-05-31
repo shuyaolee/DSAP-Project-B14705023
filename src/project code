@@ -1,180 +1,362 @@
 #include <iostream>
-#include <string>
 #include <vector>
+#include <string>
+#include <unordered_map>
+#include <queue>
+#include <limits>
+#include <chrono>
 #include <algorithm>
-#include <ctime>
-#include <map>
+#include <random>
 
 using namespace std;
+using namespace std::chrono;
 
-// Define the Node
-struct SongNode {
-    string title;
-    string url;
-    SongNode* prev; // pointer to the previous song
-    SongNode* next; // pointer to the next song
+// 系統常數設定
+const int INF = numeric_limits<int>::max();
+const int TRANSFER_PENALTY = 15; // 轉乘懲罰：切換交通工具時增加 15 分鐘代價
 
-    // constructor to create a new song
-    SongNode(string t, string u){
-        title = t;
-        url = u;
-        prev = nullptr;
-        next = nullptr;
+// 1. 定義「邊」(Edge)
+struct Edge {
+    string destination;
+    int timeCost;
+    int financialCost;
+    string transitMode; // "MRT", "Bus", "YouBike", "Walk"
+
+    Edge(string dest, int time, int money, string mode)
+        : destination(dest), timeCost(time), financialCost(money), transitMode(mode) {}
+};
+
+// 2. 為 Min-Heap 設計狀態節點
+// 升級版的狀態節點
+struct PQNode {
+    string stationName;
+    int currentWeight;
+    string arrivedMode;
+    int mrtStationCount; // 紀錄目前連續搭了幾站捷運
+
+    PQNode(string name, int weight, string mode, int mrtCount = 0)
+        : stationName(name), currentWeight(weight), arrivedMode(mode), mrtStationCount(mrtCount) {}
+
+    bool operator>(const PQNode& other) const {
+        return currentWeight > other.currentWeight;
     }
 };
 
-// Define the engine
-class MusicEngine {
+// 3. 核心導航引擎
+class UrbanHiddenRouter {
 private:
-    SongNode* head;
-    SongNode* tail;
-    SongNode* current; // Keeps track of what is currently playing
-    int songCount;
+    unordered_map<string, vector<Edge>> adjacencyList;
 
 public:
-    MusicEngine(){
-        head = nullptr;
-        tail = nullptr;
-        current = nullptr;
-        songCount = 0;
+    // 新增路線 (Graph Construction)
+    void addRoute(string src, string dest, int time, int money, string mode) {
+        adjacencyList[src].push_back(Edge(dest, time, money, mode));
+        adjacencyList[dest].push_back(Edge(src, time, money, mode)); // 雙向通行
     }
 
-    // [Add/Insert]: 在尾端新增歌曲
-    void addSong(string title, string url) {
-        SongNode* newNode = new SongNode(title, url);
+    // Static Micro-Network Initialization
+    void buildMicroUniverse() {
+        // 1. 捷運 (細分路線)
+        // 藍線 (板南線)
+        addRoute("西門", "台北車站", 3, 20, "MRT_板南線");
+                
+        // 紅線 (淡水信義線)
+        addRoute("台北車站", "台大醫院", 2, 20, "MRT_淡水信義線");
+        addRoute("台大醫院", "中正紀念堂", 2, 20, "MRT_淡水信義線");
+        addRoute("中正紀念堂", "東門", 3, 20, "MRT_淡水信義線"); // 新增紅線過站
+        addRoute("東門", "大安森林公園", 2, 20, "MRT_淡水信義線");
+        addRoute("大安森林公園", "大安", 2, 20, "MRT_淡水信義線");
         
-        if (head == nullptr) {
-            // if the list is empty, this song is the head, tail, and current
-            head = tail = current = newNode;
-        }
-        else {
-            // link the new node to the end of the list
-            tail->next = newNode;
-            newNode->prev = tail;
-            tail = newNode; // update the tail pointer
-        }
-        songCount++;
-        cout << "Added to queue: " << title << endl;
+        // 綠線 (松山新店線)
+        addRoute("西門", "小南門", 2, 20, "MRT_松山新店線");
+        addRoute("小南門", "中正紀念堂", 2, 20, "MRT_松山新店線");
+        addRoute("中正紀念堂", "古亭", 2, 20, "MRT_松山新店線");
+        addRoute("古亭", "台電大樓", 2, 20, "MRT_松山新店線");
+        addRoute("台電大樓", "公館", 2, 20, "MRT_松山新店線");
+
+        // 棕線 (文湖線)
+        addRoute("大安", "科技大樓", 2, 20, "MRT_文湖線");
+        addRoute("科技大樓", "六張犁", 2, 20, "MRT_文湖線");
+
+        // 2. 微型節點與隱藏路網 (Walk / YouBike)
+        addRoute("西門", "植物園", 5, 0, "Walk");
+        addRoute("植物園", "建國中學", 2, 0, "Walk");
+        addRoute("建國中學", "公館", 12, 10, "YouBike");
+
+        addRoute("公館", "台大管院", 5, 0, "Walk");
+        addRoute("中正紀念堂", "台大管院", 15, 10, "YouBike");
+
+        addRoute("台大管院", "科技大樓", 8, 10, "YouBike");
+        addRoute("台大管院", "基隆長興街口", 10, 0, "Walk");
+        addRoute("基隆長興街口", "六張犁", 7, 10, "YouBike");
+
+        addRoute("公館", "溫州街口", 5, 0, "Walk");
+        addRoute("溫州街口", "大安森林公園", 10, 10, "YouBike");
+        addRoute("台電大樓", "師大夜市", 5, 0, "Walk");
+        addRoute("師大夜市", "古亭", 8, 0, "Walk");
+        
+        // 3. 公車直達
+        addRoute("西門", "公館", 35, 15, "Bus_253");
+        addRoute("台北車站", "公館", 25, 15, "Bus_羅斯福路幹線");
+        addRoute("公館", "六張犁", 15, 15, "Bus_基隆路幹線");
+        addRoute("公館", "科技大樓", 12, 15, "Bus_復興幹線");
+        addRoute("大安", "台北車站", 20, 15, "Bus_信義幹線");
+        
+        // 4. 公車轉乘
+        addRoute("台北車站", "中正紀念堂", 5, 15, "Bus_羅斯福路幹線");
+        addRoute("中正紀念堂", "羅斯福和平路口", 6, 0, "Bus_羅斯福路幹線"); //繼續搭同一台不用多付錢，設為 0 元
+        addRoute("羅斯福和平路口", "公館", 8, 0, "Bus_羅斯福路幹線");
+        
+        addRoute("科技大樓", "大安森林公園", 8, 15, "Bus_和平幹線");
+        addRoute("大安森林公園", "羅斯福和平路口", 6, 0, "Bus_和平幹線");
+        addRoute("羅斯福和平路口", "古亭", 3, 0, "Bus_和平幹線");
+
+        // 在轉車時的步行 (下公車走去捷運站或借腳踏車)
+        addRoute("羅斯福和平路口", "師大夜市", 4, 0, "Walk");
     }
 
-    // [Play]: 播放
-    void play() {
-        if (current) {
-            cout << "Now Playing: " << current->title << " [" << current->url << "]" <<endl;
+    // Min-Heap Dijkstra (Cross-Modal Route Extraction)
+    void findOptimalRoute(string start, string end, int optimizationMode) {
+        unordered_map<string, int> minWeight;
+        unordered_map<string, string> parentStation; // Parent-pointer tracking
+        unordered_map<string, string> parentMode;    // 紀錄父節點搭什麼車來的
+        
+        for (auto const& pair : adjacencyList) {
+            minWeight[pair.first] = INF;
         }
-    }
-    
-    // [Next]: 播放前一首歌
-    void playNext() {
-        if (current && current->next) {
-            current = current->next;
-            cout << "Playing Next: " << current->title << endl;
-        } else {
-            cout << "End of playlist reached." << endl;
-        }
-    }
-    
-    // [Previous]: 播放下一首歌
-    void playPrev() {
-        if (current && current->prev) {
-            current = current->prev;
-            cout << "Playing Previous: " << current->title << endl;
-        } else {
-            cout << "Already at the first song." << endl;
-        }
-    }
-
-    // [Delete]: 刪除特定歌曲
-    void deleteSong(string title) {
-        SongNode* temp = head;
-        while (temp) {
-            if (temp->title == title) {
-                if (temp->prev) temp->prev->next = temp->next;
-                if (temp->next) temp->next->prev = temp->prev;
-                if (temp == head) head = temp->next;
-                if (temp == tail) tail = temp->prev;
-                if (temp == current) current = (temp->next) ? temp->next : head;
-                delete temp;
-                songCount--;
-                return;
+        
+        priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
+        minWeight[start] = 0;
+        minHeap.push(PQNode(start, 0, "START"));
+        
+        cout << "[開始導航] " << start << " -> " << end << "\n";
+        cout << "演算法策略: ";
+        if (optimizationMode == 0) cout << "最省時間 (Shortest Time)\n";
+        else if (optimizationMode == 1) cout << "最少轉乘 (Minimum Transfers)\n";
+        else if (optimizationMode == 2) cout << "最省錢 (Lowest Cost)\n";
+        
+        while (!minHeap.empty()) {
+            PQNode current = minHeap.top();
+            minHeap.pop();
+            
+            string u = current.stationName;
+            if (u == end) break; // 提早結束
+            if (current.currentWeight > minWeight[u]) continue; // Lazy deletion
+            
+            // 走訪相連的站點
+            for (const Edge& edge : adjacencyList[u]) {
+                string v = edge.destination;
+                
+                int evaluateWeight = 0;
+                int nextMrtCount = 0; // 傳給下一個節點的捷運站數狀態
+                
+                // 最省錢模式區間計費邏輯
+                if (optimizationMode == 2) {
+                    if (edge.transitMode == "MRT") {
+                        if (current.arrivedMode != "MRT") {
+                            // 狀況 A：剛進站搭捷運 (收取基本費 20 元)
+                            evaluateWeight = 20;
+                            nextMrtCount = 1;
+                        } else {
+                            // 狀況 B：繼續搭捷運 (確認區間是否需要加錢)
+                            nextMrtCount = current.mrtStationCount + 1;
+                            
+                            // 階梯計價：假設每多搭 3 站，票價加 5 元
+                            if (nextMrtCount % 3 == 1) {
+                                evaluateWeight = 5; // 跨區間，這條邊要加 5 元
+                            } else {
+                                evaluateWeight = 0; // 同區間內，這條邊免費 (0元)
+                            }
+                        }
+                    } else {
+                        // 如果不是捷運 (公車、YouBike)，直接讀取預設的 financialCost
+                        evaluateWeight = edge.financialCost;
+                        nextMrtCount = 0; // 離開捷運，站數歸零
+                    }
+                }
+                // 最省時間 / 最少轉乘
+                else {
+                    evaluateWeight = edge.timeCost;
+                    if (optimizationMode == 1 && current.arrivedMode != "START" && current.arrivedMode != edge.transitMode) {
+                        evaluateWeight += TRANSFER_PENALTY;
+                    }
+                }
+                
+                // 更新權重並推入 Min-Heap
+                int newWeight = minWeight[u] + evaluateWeight;
+                if (newWeight < minWeight[v]) {
+                    minWeight[v] = newWeight;
+                    parentStation[v] = u;
+                    parentMode[v] = edge.transitMode;
+                    
+                    // 把更新後的 nextMrtCount 傳遞給下一個節點
+                    minHeap.push(PQNode(v, newWeight, edge.transitMode, nextMrtCount));
+                }
             }
-            temp = temp->next;
         }
-    }
-    
-    // [Shuffle]: Fisher-Yates
-    void shuffle() {
-        if (songCount < 2) return;
         
-        vector<SongNode*> nodes;
-        SongNode* temp = head;
-        while (temp) {
-            nodes.push_back(temp);
-            temp = temp->next;
+        // 印出路徑 (升級版：路徑壓縮)
+        if (minWeight[end] == INF) {
+            cout << "找不到路線！\n";
+            return;
         }
 
-        for (int i = songCount - 1; i > 0; i--) {
-            int j = rand() % (i + 1);
-            swap(nodes[i], nodes[j]);
+        // 1. 先把所有節點跟交通方式「反向」收集起來
+        vector<string> routeNodes;
+        vector<string> routeModes;
+        string curr = end;
+        while (curr != start) {
+            routeNodes.push_back(curr);
+            routeModes.push_back(parentMode[curr]);
+            curr = parentStation[curr];
+        }
+        routeNodes.push_back(start); // 把起點也加進去
+                
+        // 2. 翻轉回正確順序 (起點 -> 終點)
+        reverse(routeNodes.begin(), routeNodes.end());
+        reverse(routeModes.begin(), routeModes.end());
+        
+        cout << "最佳路線：\n";
+        string segmentStart = routeNodes[0];
+        string currentMode = routeModes[0];
+        
+        // 3. 開始進行壓縮輸出
+        for (size_t i = 1; i < routeNodes.size(); i++) {
+            // 觸發輸出的條件：交通工具換了，或者是已經到了最後一站
+            if (i == routeNodes.size() - 1 || routeModes[i] != currentMode) {
+                cout << "   [" << segmentStart << "] --(" << currentMode << ")--> [" << routeNodes[i] << "]\n";
+                // 更新下一段的起點與交通工具
+                segmentStart = routeNodes[i];
+                if (i < routeNodes.size() - 1) {
+                    currentMode = routeModes[i];
+                }
+            }
+        }
+        cout << "（演算法計算總代價: " << minWeight[end] << (optimizationMode == 2 ? " 元）" : " 分鐘/懲罰分數）") << "\n";
+        cout << "\n";
+        cout << "====================================================\n";
+    };
+
+
+    // Synthetic Stress-Testing & Benchmarking
+    void generateSyntheticGraph(int numStations, int numEdges) {
+        cout << "[壓力測試] 正在生成大量虛擬路網 (節點: " << numStations << ", 路線: " << numEdges << ")...\n";
+        adjacencyList.clear(); // 清空微縮宇宙
+
+        for (int i = 0; i < numEdges; i++) {
+            string src = "V_Station_" + to_string(rand() % numStations);
+            string dest = "V_Station_" + to_string(rand() % numStations);
+            if (src == dest) continue;
+            
+            int time = rand() % 30 + 1;
+            int cost = rand() % 50 + 10;
+            addRoute(src, dest, time, cost, "Virtual_Transit");
+        }
+    }
+
+    // 對照組：使用 Unsorted Array 尋找最小節點的 Dijkstra
+    void benchmarkArrayDijkstra(string start) {
+        unordered_map<string, int> minWeight;
+        unordered_map<string, bool> visited;
+        for (auto const& pair : adjacencyList) {
+            minWeight[pair.first] = INF;
+            visited[pair.first] = false;
+        }
+        minWeight[start] = 0;
+
+        auto startTime = high_resolution_clock::now(); // 計時開始
+
+        // 進行 V 次線性尋找
+        for (size_t i = 0; i < adjacencyList.size(); i++) {
+            // O(V) 的尋找過程 (極度沒效率)
+            string u = "";
+            int minVal = INF;
+            for (auto const& pair : minWeight) {
+                if (!visited[pair.first] && pair.second < minVal) {
+                    minVal = pair.second;
+                    u = pair.first;
+                }
+            }
+
+            if (u == "" || minVal == INF) break;
+            visited[u] = true;
+
+            for (const Edge& edge : adjacencyList[u]) {
+                if (!visited[edge.destination] && minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
+                    minWeight[edge.destination] = minWeight[u] + edge.timeCost;
+                }
+            }
         }
 
-        head = nodes[0];
-        head->prev = nullptr;
-        for (int i = 0; i < songCount - 1; i++) {
-            nodes[i]->next = nodes[i+1];
-            nodes[i+1]->prev = nodes[i];
-        }
-        tail = nodes[songCount - 1];
-        tail->next = nullptr;
-        current = head;
-        cout << "Playlist Shuffled Successfully." << endl;
+        auto stopTime = high_resolution_clock::now(); // 計時結束
+        auto duration = duration_cast<milliseconds>(stopTime - startTime);
+        cout << "   [Unsorted Array - O(V^2)] 耗時: " << duration.count() << " 毫秒 (ms)\n";
     }
-    
-    // Statistical Testing Module
-    void runStatisticalTest(int trials) {
-        cout << "\n--- Running Fairness Test (" << trials << " trials) ---" << endl;
-        map<string, int> firstSlotCount;
-        
-        for (int i = 0; i < trials; i++) {
-            shuffle();
-            firstSlotCount[head->title]++;
+
+    // 實驗組：使用 Min-Heap 尋找最小節點的 Dijkstra
+    void benchmarkMinHeapDijkstra(string start) {
+        unordered_map<string, int> minWeight;
+        for (auto const& pair : adjacencyList) minWeight[pair.first] = INF;
+
+        priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
+        minWeight[start] = 0;
+        minHeap.push(PQNode(start, 0, "START"));
+
+        auto startTime = high_resolution_clock::now(); // 計時開始
+
+        while (!minHeap.empty()) {
+            PQNode current = minHeap.top();
+            minHeap.pop(); // O(log V) 瞬間拔出最小節點
+
+            string u = current.stationName;
+            if (current.currentWeight > minWeight[u]) continue;
+
+            for (const Edge& edge : adjacencyList[u]) {
+                if (minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
+                    minWeight[edge.destination] = minWeight[u] + edge.timeCost;
+                    minHeap.push(PQNode(edge.destination, minWeight[edge.destination], edge.transitMode));
+                }
+            }
         }
-        cout << "Probability of each song appearing at Slot 1:" << endl;
-        for (auto const& [title, count] : firstSlotCount) {
-            double prob = (double)count / trials * 100;
-            cout << "- " << title << ": " << prob << "%" << endl;
-        }
+
+        auto stopTime = high_resolution_clock::now(); // 計時結束
+        auto duration = duration_cast<milliseconds>(stopTime - startTime);
+        cout << "   [Min-Heap - O((V+E)logV)] 耗時: " << duration.count() << " 毫秒 (ms)\n";
     }
 };
 
+// 4. 主程式執行流 (完全依照 Proposal 的 4 點設計)
 int main() {
-    MusicEngine myPlayer;
-    myPlayer.addSong("All Too Well", "url1");
-    myPlayer.addSong("Love Story", "url2");
-    myPlayer.addSong("Long Live", "url3");
-    myPlayer.addSong("Cornelia Street", "url4");
-    myPlayer.addSong("I Wish You Would", "url5");
-    myPlayer.addSong("Out of the Woods", "url6");
-    myPlayer.addSong("Enchanted", "url7");
-    myPlayer.addSong("Exile", "url8");
-    myPlayer.addSong("Mirrorball", "url9");
-    myPlayer.addSong("The Archer", "url10");
-    myPlayer.addSong("Treacherous", "url11");
-    myPlayer.addSong("Getaway Car", "url12");
-    myPlayer.addSong("Wonderland", "url13");
-    myPlayer.addSong("Style", "url14");
-    myPlayer.addSong("You’re on Your Own, Kid", "url15");
-    myPlayer.addSong("Mean", "url16");
-    myPlayer.addSong("Back to December", "url17");
-    myPlayer.addSong("Cruel Summer", "url18");
-    myPlayer.addSong("Haunted", "url19");
-    myPlayer.addSong("State of Grace", "url20");
+    UrbanHiddenRouter engine;
     
-    // 測試基礎播放
-    myPlayer.play();
+    // [驗證 1] 靜態微縮路網建構
+    engine.buildMicroUniverse();
 
-    // 測試洗牌與統計模組
-    myPlayer.runStatisticalTest(1000);
+    // [驗證 2-1] 最省時間導航：預期會瘋狂轉乘來爭取最快速度
+    engine.findOptimalRoute("西門", "台大管院", 0);
+    cout << "\n";
+
+    // [驗證 2-2] 最少轉乘導航：預期會捨棄腳踏車，改搭一車到底但較慢的公車
+    engine.findOptimalRoute("西門", "台大管院", 1);
+    cout << "\n";
+
+    // [驗證 2-3] 最省錢導航：預期會算出超便宜的票價！
+    // 試試看沒有直達捷運的路線，看它怎麼幫妳省錢
+    engine.findOptimalRoute("科技大樓", "公館", 2);
+    cout << "\n";
+
+    // ==========================================
+    // 🚀 [驗證 4] 演算法效能標竿測試
+    // ==========================================
+    engine.generateSyntheticGraph(10000, 50000); // 1萬個節點，5萬條路線
+    
+    // 隨機抽一個節點當起點
+    string startNode = "V_Station_0";
+    
+    engine.benchmarkArrayDijkstra(startNode);
+    engine.benchmarkMinHeapDijkstra(startNode);
+    cout << "\n";
+    cout << "====================================================\n";
 
     return 0;
 }
