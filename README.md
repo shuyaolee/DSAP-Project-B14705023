@@ -77,28 +77,35 @@ By the Prototype phase, the following core functionalities will be fully testabl
 
 ### 目前進度
 <!-- 完成了什麼 -->
-+ **Graph Data Structure Implementation**: Successfully defined the `Edge` and `Station` structures. Implemented the Adjacency List using `std::unordered_map` and `std::vector`, ensuring optimal *O*(*V*+*E*) memory utilization, which is crucial for representing sparse urban transit networks.
++ **Multi-Modal Zero-Pruning Graph Construction**: Successfully implemented the Adjacency List using C++ `std::unordered_map` and `std::vector` to build the "Taipei Micro-Universe" transit network. The system losslessly integrates multi-modal edges (MRT lines including Bannan, Tamsui-Xinyi, and Songshan-Xindian with the Xiaonanmen transfer, direct/transfer buses, YouBike, and walking), achieving an optimal $O(V+E)$ space complexity.
 
-+ **Multi-Modal Edge Definition**: Engineered the Edge struct to hold multiple weight parameters (`timeCost`, `financialCost`) and `transitMode` (e.g., Walk, MRT, YouBike). This allows the graph to support dynamic weight shifting based on user preference.
++ **Dynamic Multi-Strategy Traversal Engine**: Completed the core Min-Heap Dijkstra algorithm and successfully implemented three dynamic routing modes:
+  
+    + **Shortest Time Mode**: Utilizes pure physical transit time as the primary weight for maximum-speed routing.
+ 
+    + **Minimum Transfers Mode**: Dynamically injects a "Transfer Penalty" during traversal via string matching, successfully guiding the algorithm to avoid heavily fragmented, multi-transfer routes.
 
-+ **Core Routing Engine (Min-Heap Dijkstra)**: Implemented the primary shortest-path algorithm utilizing C++'s `std::priority_queue` (acting as a Min-Heap). The engine can successfully traverse the adjacency list and extract the optimal route based on the selected weight parameter in *O*((*V*+*E*)*logV*) time.
+    + **Lowest Cost Mode**: Overcame Dijkstra's linear additive limitation by adding a continuous station counter to the state node (`PQNode`), perfectly executing the MRT's "zonal step-fare logic."
+
++ **Path Compression & Backtracking**: Successfully reverse-engineered routes from the destination using a Parent-Pointer tracking mechanism. To optimize User Experience (UX), a path compression algorithm was implemented to collapse continuous rides on the same transit line into a single transit segment (e.g., compressing multiple sequential MRT stations into a clean `[Ximen] --(MRT_Songshan_Xindian)--> [Gongguan]` output).
+
++ **Synthetic Stress-Testing Harness**: Developed an automated graph generator (`generateSyntheticGraph`) capable of instantly weaving a massive virtual metropolitan network in memory containing 10,000 nodes and 50,000 edges, providing a rigorous benchmark environment for the algorithms.
 
 ### 遇到的困難
 <!-- 遇到什麼問題、如何解決或打算如何解決 -->
-+ **The `decrease-key` Limitation in C++ Priority Queue**: Standard C++ `std::priority_queue` does not support a direct `decrease-key` operation to update node weights dynamically during Dijkstra's traversal.
-    + **Solution**: Adopted the "Lazy Deletion" (or Visited Set) approach. Instead of updating existing nodes in the heap, the system pushes duplicate nodes with smaller distances and utilizes a boolean `visited` map to simply ignore outdated, higher-distance nodes when they are popped.
++ **Path-Dependent Weight Constraints (Non-Linear Pricing)**: Real-world MRT fares utilize zonal step-pricing (e.g., a flat base rate for initial stations, with marginal increases only when crossing zones). This violates standard Dijkstra's assumption that edge weights must be independent and linearly additive, which initially caused calculated fares to inflate inaccurately.
+    + **Solution**: Implemented a "State-Space Search" expansion. Upgraded the `PQNode` to track the "continuous MRT stations traveled" (`mrtStationCount`) and the "previous transit mode." During the relaxation phase, the algorithm dynamically applies modulo logic based on the node's state to determine the exact financial cost of the edge, successfully resolving the conflict without altering the static graph structure.
 
-+ **Dynamic Weight Re-evaluation**: Implemented a state flag (`isTimeOptimized`) that is passed into the priority queue's custom comparator. This allows the same graph in memory to be evaluated differently in real-time without duplicating data.
-    + **Solution**: Manually enforced `head->prev = nullptr` and `tail->next = nullptr` at the end of the shuffle function to ensure the structural integrity of the Doubly Linked List.
++ **Redundant Traversal Node Spam on CLI**: In the basic route backtracking, because MRT stations are connected sequentially, the system indiscriminately printed every intermediate station. This made direct routes look extremely verbose and difficult to read on the Command Line Interface.
+    + **Solution**: Designed a buffer-and-collapse mechanism. During route backtracking, nodes are collected in reverse order, and adjacent edges are evaluated using a loop on their `transitMode`. The CLI output is now only triggered when a mode switch (transfer) occurs or the destination is reached, successfully achieving a path compression effect identical to commercial navigation apps.
 
 ### 下一步計畫
 <!-- 接下來要做什麼 -->
-+ **Baseline Performance Benchmarking (Array implementation)**: The next critical phase is writing the "Unsorted Array" version of the node-extraction phase. I will integrate the `<chrono>` library to record the CPU execution time (in milliseconds) to formally compare the Array vs. Min-Heap performance.
++ **Performance Curve Exporting & Multi-Sample Benchmarking**: We have successfully completed a single-run stress test on a 10,000-node scale, validating the nearly 200x performance gap between the `Unsorted Array` (17,561 ms) and the `Min-Heap` (89 ms). The next phase is to write an automated testing loop that incrementally tests graph loads from 1,000 to 20,000 nodes, exporting the CPU execution time data as a `.csv` file. This will be used to plot the actual time complexity curves of $O(V^2)$ vs. $O((V+E)logV)$ for the final report.
+  
++ **File I/O Configuration Parser**: To completely decouple the transit data from the program logic, the next step is to replace the hardcoded `buildMicroUniverse()` function. We will utilize standard C++ File I/O to read external `.txt` or `.csv` configuration files, allowing users to freely define and expand the city's transit nodes and travel parameters without recompiling the code.
 
-+ **Synthetic Graph Generator**: Develop a data generation loop to randomly create a massive stress-test network consisting of 10,000 virtual stations and 50,000 interconnecting edges for the performance benchmark.
-
-+ **Path Tracing & CLI Development**: Currently, the engine calculates the shortest distance but does not print the step-by-step route. I will implement a `previous_node` tracking map to allow backtracking and output a clear, user-friendly navigation instruction set via the Command Line Interface.
-
++ **Dynamic Edge Disruption Simulation**: To further challenge the limits of commercial maps, we plan to introduce a "dynamic network disruption" feature. During routing, the system will randomly set the weights of specific edges (e.g., a suspended MRT segment or an empty YouBike station) to infinity (`INF`). This will verify the engine's resiliency and real-time rerouting capabilities when facing unexpected urban traffic events.
 
 ---
 
