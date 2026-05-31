@@ -87,7 +87,7 @@ By the Prototype phase, the following core functionalities will be fully testabl
 
     + **Lowest Cost Mode**: Overcame Dijkstra's linear additive limitation by adding a continuous station counter to the state node (`PQNode`), perfectly executing the MRT's "zonal step-fare logic."
 
-+ **Path Compression & Backtracking**: Successfully reverse-engineered routes from the destination using a Parent-Pointer tracking mechanism. To optimize User Experience (UX), a path compression algorithm was implemented to collapse continuous rides on the same transit line into a single transit segment (e.g., compressing multiple sequential MRT stations into a clean `[Ximen] --(MRT_Songshan_Xindian)--> [Gongguan]` output).
++ **Path Compression & Backtracking**: Successfully reverse-engineered routes from the destination using a Parent-Pointer tracking mechanism. To optimize User Experience (UX), a path compression algorithm was implemented to collapse continuous rides on the same transit line into a single transit segment (e.g., compressing multiple sequential MRT stations into a clean `[Ximen] --> (MRT_Songshan_Xindian) --> [Gongguan]` output).
 
 + **Synthetic Stress-Testing Harness**: Developed an automated graph generator (`generateSyntheticGraph`) capable of instantly weaving a massive virtual metropolitan network in memory containing 10,000 nodes and 50,000 edges, providing a rigorous benchmark environment for the algorithms.
 
