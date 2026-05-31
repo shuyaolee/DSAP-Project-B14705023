@@ -7,32 +7,34 @@
 #include <chrono>
 #include <algorithm>
 #include <random>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 using namespace std::chrono;
 
 // 系統常數設定
 const int INF = numeric_limits<int>::max();
-const int TRANSFER_PENALTY = 15; // 轉乘懲罰：切換交通工具時增加 15 分鐘代價
+const int BLOCKED = 999999; // 路線阻斷時的極大代價 (避免 INF 溢位)
+const int TRANSFER_PENALTY = 15;
 
 // 1. 定義「邊」(Edge)
 struct Edge {
     string destination;
     int timeCost;
     int financialCost;
-    string transitMode; // "MRT", "Bus", "YouBike", "Walk"
+    string transitMode;
 
     Edge(string dest, int time, int money, string mode)
         : destination(dest), timeCost(time), financialCost(money), transitMode(mode) {}
 };
 
-// 2. 為 Min-Heap 設計狀態節點
-// 升級版的狀態節點
+// 2. 狀態節點
 struct PQNode {
     string stationName;
     int currentWeight;
     string arrivedMode;
-    int mrtStationCount; // 紀錄目前連續搭了幾站捷運
+    int mrtStationCount;
 
     PQNode(string name, int weight, string mode, int mrtCount = 0)
         : stationName(name), currentWeight(weight), arrivedMode(mode), mrtStationCount(mrtCount) {}
@@ -48,25 +50,64 @@ private:
     unordered_map<string, vector<Edge>> adjacencyList;
 
 public:
-    // 新增路線 (Graph Construction)
     void addRoute(string src, string dest, int time, int money, string mode) {
         adjacencyList[src].push_back(Edge(dest, time, money, mode));
-        adjacencyList[dest].push_back(Edge(src, time, money, mode)); // 雙向通行
+        adjacencyList[dest].push_back(Edge(src, time, money, mode));
     }
 
-    // Static Micro-Network Initialization
+    // 外部資料設定檔解析器 (File I/O)
+    void loadGraphFromCSV(string filename) {
+        ifstream file(filename);
+        if (!file.is_open()) {
+            cout << "WARNING: 找不到 " << filename << "，請確認檔案存在。系統將使用預設的微縮路網。\n";
+            return;
+        }
+
+        string line, src, dest, time_str, money_str, mode;
+        getline(file, line); // 跳過標題列
+        
+        while (getline(file, line)) {
+            stringstream ss(line);
+            getline(ss, src, ',');
+            getline(ss, dest, ',');
+            getline(ss, time_str, ',');
+            getline(ss, money_str, ',');
+            getline(ss, mode, ',');
+            addRoute(src, dest, stoi(time_str), stoi(money_str), mode);
+        }
+        cout << "成功從 " << filename << " 載入外部路網資料！\n";
+    }
+
+    // 突發事件路網阻斷模擬
+    void disruptEdge(string src, string dest) {
+        cout << "[突發狀況] " << src << " 到 " << dest << " 的路線發生嚴重堵塞 / 停駛！\n";
+        for (auto& edge : adjacencyList[src]) {
+            if (edge.destination == dest) {
+                edge.timeCost = BLOCKED;
+                edge.financialCost = BLOCKED;
+            }
+        }
+        for (auto& edge : adjacencyList[dest]) {
+            if (edge.destination == src) {
+                edge.timeCost = BLOCKED;
+                edge.financialCost = BLOCKED;
+            }
+        }
+    }
+
+    // 內建的台大公館微縮路網 (如果沒有 CSV 檔就用這個)
     void buildMicroUniverse() {
         // 1. 捷運 (細分路線)
         // 藍線 (板南線)
         addRoute("西門", "台北車站", 3, 20, "MRT_板南線");
-                
+            
         // 紅線 (淡水信義線)
         addRoute("台北車站", "台大醫院", 2, 20, "MRT_淡水信義線");
         addRoute("台大醫院", "中正紀念堂", 2, 20, "MRT_淡水信義線");
         addRoute("中正紀念堂", "東門", 3, 20, "MRT_淡水信義線"); // 新增紅線過站
         addRoute("東門", "大安森林公園", 2, 20, "MRT_淡水信義線");
         addRoute("大安森林公園", "大安", 2, 20, "MRT_淡水信義線");
-        
+            
         // 綠線 (松山新店線)
         addRoute("西門", "小南門", 2, 20, "MRT_松山新店線");
         addRoute("小南門", "中正紀念堂", 2, 20, "MRT_松山新店線");
@@ -82,7 +123,7 @@ public:
         addRoute("西門", "植物園", 5, 0, "Walk");
         addRoute("植物園", "建國中學", 2, 0, "Walk");
         addRoute("建國中學", "公館", 12, 10, "YouBike");
-
+        
         addRoute("公館", "台大管院", 5, 0, "Walk");
         addRoute("中正紀念堂", "台大管院", 15, 10, "YouBike");
 
@@ -115,15 +156,14 @@ public:
         addRoute("羅斯福和平路口", "師大夜市", 4, 0, "Walk");
     }
 
-    // Min-Heap Dijkstra (Cross-Modal Route Extraction)
+
+    // 核心導航演算法 (包含所有動態權重與路徑壓縮)
     void findOptimalRoute(string start, string end, int optimizationMode) {
         unordered_map<string, int> minWeight;
-        unordered_map<string, string> parentStation; // Parent-pointer tracking
-        unordered_map<string, string> parentMode;    // 紀錄父節點搭什麼車來的
+        unordered_map<string, string> parentStation;
+        unordered_map<string, string> parentMode;
         
-        for (auto const& pair : adjacencyList) {
-            minWeight[pair.first] = INF;
-        }
+        for (auto const& pair : adjacencyList) minWeight[pair.first] = INF;
         
         priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
         minWeight[start] = 0;
@@ -134,44 +174,34 @@ public:
         if (optimizationMode == 0) cout << "最省時間 (Shortest Time)\n";
         else if (optimizationMode == 1) cout << "最少轉乘 (Minimum Transfers)\n";
         else if (optimizationMode == 2) cout << "最省錢 (Lowest Cost)\n";
-        
+        cout << "----------------------------------------------------\n";
+
         while (!minHeap.empty()) {
             PQNode current = minHeap.top();
             minHeap.pop();
             
             string u = current.stationName;
-            if (u == end) break; // 提早結束
-            if (current.currentWeight > minWeight[u]) continue; // Lazy deletion
+            if (u == end) break;
+            if (current.currentWeight > minWeight[u]) continue;
             
-            // 走訪相連的站點
             for (const Edge& edge : adjacencyList[u]) {
                 string v = edge.destination;
-                
                 int evaluateWeight = 0;
-                int nextMrtCount = 0; // 傳給下一個節點的捷運站數狀態
+                int nextMrtCount = 0;
                 
-                // 最省錢模式區間計費邏輯
+                // 最省錢模式 (階梯計價)
                 if (optimizationMode == 2) {
-                    if (edge.transitMode == "MRT") {
-                        if (current.arrivedMode != "MRT") {
-                            // 狀況 A：剛進站搭捷運 (收取基本費 20 元)
+                    if (edge.transitMode.find("MRT") != string::npos) {
+                        if (current.arrivedMode.find("MRT") == string::npos) {
                             evaluateWeight = 20;
                             nextMrtCount = 1;
                         } else {
-                            // 狀況 B：繼續搭捷運 (確認區間是否需要加錢)
                             nextMrtCount = current.mrtStationCount + 1;
-                            
-                            // 階梯計價：假設每多搭 3 站，票價加 5 元
-                            if (nextMrtCount % 3 == 1) {
-                                evaluateWeight = 5; // 跨區間，這條邊要加 5 元
-                            } else {
-                                evaluateWeight = 0; // 同區間內，這條邊免費 (0元)
-                            }
+                            evaluateWeight = (nextMrtCount % 3 == 1) ? 5 : 0;
                         }
                     } else {
-                        // 如果不是捷運 (公車、YouBike)，直接讀取預設的 financialCost
                         evaluateWeight = edge.financialCost;
-                        nextMrtCount = 0; // 離開捷運，站數歸零
+                        nextMrtCount = 0;
                     }
                 }
                 // 最省時間 / 最少轉乘
@@ -182,135 +212,96 @@ public:
                     }
                 }
                 
-                // 更新權重並推入 Min-Heap
                 int newWeight = minWeight[u] + evaluateWeight;
                 if (newWeight < minWeight[v]) {
                     minWeight[v] = newWeight;
                     parentStation[v] = u;
                     parentMode[v] = edge.transitMode;
-                    
-                    // 把更新後的 nextMrtCount 傳遞給下一個節點
                     minHeap.push(PQNode(v, newWeight, edge.transitMode, nextMrtCount));
                 }
             }
         }
         
-        // 印出路徑 (升級版：路徑壓縮)
-        if (minWeight[end] == INF) {
-            cout << "找不到路線！\n";
+        // 輸出：路徑壓縮折疊機制
+        if (minWeight[end] == INF || minWeight[end] >= BLOCKED) {
+            cout << "找不到路線，目的地可能已被阻斷！\n\n";
             return;
         }
-
-        // 1. 先把所有節點跟交通方式「反向」收集起來
-        vector<string> routeNodes;
-        vector<string> routeModes;
+        
+        vector<string> routeNodes, routeModes;
         string curr = end;
         while (curr != start) {
             routeNodes.push_back(curr);
             routeModes.push_back(parentMode[curr]);
             curr = parentStation[curr];
         }
-        routeNodes.push_back(start); // 把起點也加進去
-                
-        // 2. 翻轉回正確順序 (起點 -> 終點)
+        routeNodes.push_back(start);
+        
         reverse(routeNodes.begin(), routeNodes.end());
         reverse(routeModes.begin(), routeModes.end());
-        
+
         cout << "最佳路線：\n";
         string segmentStart = routeNodes[0];
         string currentMode = routeModes[0];
-        
-        // 3. 開始進行壓縮輸出
+
         for (size_t i = 1; i < routeNodes.size(); i++) {
-            // 觸發輸出的條件：交通工具換了，或者是已經到了最後一站
             if (i == routeNodes.size() - 1 || routeModes[i] != currentMode) {
                 cout << "   [" << segmentStart << "] --(" << currentMode << ")--> [" << routeNodes[i] << "]\n";
-                // 更新下一段的起點與交通工具
                 segmentStart = routeNodes[i];
-                if (i < routeNodes.size() - 1) {
-                    currentMode = routeModes[i];
-                }
+                if (i < routeNodes.size() - 1) currentMode = routeModes[i];
             }
         }
-        cout << "（演算法計算總代價: " << minWeight[end] << (optimizationMode == 2 ? " 元）" : " 分鐘/懲罰分數）") << "\n";
-        cout << "\n";
-        cout << "====================================================\n";
-    };
+        cout << "（總代價: " << minWeight[end] << (optimizationMode == 2 ? " 元）\n\n" : " 分鐘/懲罰分數）\n\n");
+    }
 
-
-    // Synthetic Stress-Testing & Benchmarking
+    // 自動化數據採集與匯出 CSV
     void generateSyntheticGraph(int numStations, int numEdges) {
-        cout << "[壓力測試] 正在生成大量虛擬路網 (節點: " << numStations << ", 路線: " << numEdges << ")...\n";
-        adjacencyList.clear(); // 清空微縮宇宙
-
+        adjacencyList.clear();
         for (int i = 0; i < numEdges; i++) {
-            string src = "V_Station_" + to_string(rand() % numStations);
-            string dest = "V_Station_" + to_string(rand() % numStations);
-            if (src == dest) continue;
-            
-            int time = rand() % 30 + 1;
-            int cost = rand() % 50 + 10;
-            addRoute(src, dest, time, cost, "Virtual_Transit");
+            string src = "V_" + to_string(rand() % numStations);
+            string dest = "V_" + to_string(rand() % numStations);
+            if (src != dest) addRoute(src, dest, rand() % 30 + 1, rand() % 50 + 10, "Virtual");
         }
     }
 
-    // 對照組：使用 Unsorted Array 尋找最小節點的 Dijkstra
-    void benchmarkArrayDijkstra(string start) {
+    long long benchmarkArray(string start) {
         unordered_map<string, int> minWeight;
         unordered_map<string, bool> visited;
-        for (auto const& pair : adjacencyList) {
-            minWeight[pair.first] = INF;
-            visited[pair.first] = false;
-        }
+        for (auto const& pair : adjacencyList) { minWeight[pair.first] = INF; visited[pair.first] = false; }
         minWeight[start] = 0;
 
-        auto startTime = high_resolution_clock::now(); // 計時開始
-
-        // 進行 V 次線性尋找
+        auto startTime = high_resolution_clock::now();
         for (size_t i = 0; i < adjacencyList.size(); i++) {
-            // O(V) 的尋找過程 (極度沒效率)
             string u = "";
             int minVal = INF;
             for (auto const& pair : minWeight) {
-                if (!visited[pair.first] && pair.second < minVal) {
-                    minVal = pair.second;
-                    u = pair.first;
-                }
+                if (!visited[pair.first] && pair.second < minVal) { minVal = pair.second; u = pair.first; }
             }
-
             if (u == "" || minVal == INF) break;
             visited[u] = true;
-
             for (const Edge& edge : adjacencyList[u]) {
                 if (!visited[edge.destination] && minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
                     minWeight[edge.destination] = minWeight[u] + edge.timeCost;
                 }
             }
         }
-
-        auto stopTime = high_resolution_clock::now(); // 計時結束
-        auto duration = duration_cast<milliseconds>(stopTime - startTime);
-        cout << "   [Unsorted Array - O(V^2)] 耗時: " << duration.count() << " 毫秒 (ms)\n";
+        auto stopTime = high_resolution_clock::now();
+        return duration_cast<milliseconds>(stopTime - startTime).count();
     }
 
-    // 實驗組：使用 Min-Heap 尋找最小節點的 Dijkstra
-    void benchmarkMinHeapDijkstra(string start) {
+    long long benchmarkHeap(string start) {
         unordered_map<string, int> minWeight;
         for (auto const& pair : adjacencyList) minWeight[pair.first] = INF;
-
         priority_queue<PQNode, vector<PQNode>, greater<PQNode>> minHeap;
         minWeight[start] = 0;
         minHeap.push(PQNode(start, 0, "START"));
 
-        auto startTime = high_resolution_clock::now(); // 計時開始
-
+        auto startTime = high_resolution_clock::now();
         while (!minHeap.empty()) {
             PQNode current = minHeap.top();
-            minHeap.pop(); // O(log V) 瞬間拔出最小節點
-
+            minHeap.pop();
             string u = current.stationName;
             if (current.currentWeight > minWeight[u]) continue;
-
             for (const Edge& edge : adjacencyList[u]) {
                 if (minWeight[u] + edge.timeCost < minWeight[edge.destination]) {
                     minWeight[edge.destination] = minWeight[u] + edge.timeCost;
@@ -318,45 +309,62 @@ public:
                 }
             }
         }
+        auto stopTime = high_resolution_clock::now();
+        return duration_cast<milliseconds>(stopTime - startTime).count();
+    }
 
-        auto stopTime = high_resolution_clock::now(); // 計時結束
-        auto duration = duration_cast<milliseconds>(stopTime - startTime);
-        cout << "   [Min-Heap - O((V+E)logV)] 耗時: " << duration.count() << " 毫秒 (ms)\n";
+    void exportBenchmarkData(string filename) {
+        ofstream file("/Users/leeshuyao/Desktop/" + filename);
+        file << "Nodes,Edges,ArrayTime_ms,MinHeapTime_ms\n";
+        cout << "\n【壓力測試】 開始執行多樣本數據採集，並匯出至 " << filename << "。\n";
+        
+        // 從 1000 點一路測到 15000 點 (考量電腦效能，間隔 2000)
+        for (int nodes = 1000; nodes <= 15000; nodes += 2000) {
+            int edges = nodes * 5;
+            generateSyntheticGraph(nodes, edges);
+            
+            long long arrayTime = benchmarkArray("V_0");
+            long long heapTime = benchmarkHeap("V_0");
+            
+            file << nodes << "," << edges << "," << arrayTime << "," << heapTime << "\n";
+            cout << "   測試完成: " << nodes << " 節點 | Array: " << arrayTime << " ms | Heap: " << heapTime << " ms\n";
+        }
+        cout << "效能數據已成功匯出！\n====================================================\n";
     }
 };
 
-// 4. 主程式執行流 (完全依照 Proposal 的 4 點設計)
+// 4. 主程式執行流
 int main() {
     UrbanHiddenRouter engine;
+    cout << "\n";
     
-    // [驗證 1] 靜態微縮路網建構
-    engine.buildMicroUniverse();
+    // [展示 1] 嘗試從外部 CSV 讀取資料 (如果沒有這個檔案，就會自動載入內建微縮宇宙)
+    engine.loadGraphFromCSV("routes.csv");
+    if(true) { engine.buildMicroUniverse(); } // 確保我們有預設資料可跑
 
-    // [驗證 2-1] 最省時間導航：預期會瘋狂轉乘來爭取最快速度
+    // [展示 2] 正常狀況下的導航 (搭乘綠線直達公館)
+    cout << "\n🟢【正常狀況下】\n";
     engine.findOptimalRoute("西門", "台大管院", 0);
-    cout << "\n";
 
-    // [驗證 2-2] 最少轉乘導航：預期會捨棄腳踏車，改搭一車到底但較慢的公車
-    engine.findOptimalRoute("西門", "台大管院", 1);
-    cout << "\n";
-
-    // [驗證 2-3] 最省錢導航：預期會算出超便宜的票價！
-    // 試試看沒有直達捷運的路線，看它怎麼幫妳省錢
-    engine.findOptimalRoute("科技大樓", "公館", 2);
-    cout << "\n";
-
-    // ==========================================
-    // 🚀 [驗證 4] 演算法效能標竿測試
-    // ==========================================
-    engine.generateSyntheticGraph(10000, 50000); // 1萬個節點，5萬條路線
+    // [展示 3] 模擬突發事件 (阻斷綠線的 古亭->台電大樓)
+    cout << "🔴【突發事件模擬】\n";
+    engine.disruptEdge("古亭", "台電大樓");
     
-    // 隨機抽一個節點當起點
-    string startNode = "V_Station_0";
+    // 演算法將被迫放棄直達綠線，重新規劃繞路 (可能會去搭板南線換紅線，或叫妳去走公車)
+    engine.findOptimalRoute("西門", "台大管院", 0);
     
-    engine.benchmarkArrayDijkstra(startNode);
-    engine.benchmarkMinHeapDijkstra(startNode);
-    cout << "\n";
-    cout << "====================================================\n";
+    // [展示 4] 匯出大數據壓力測試報表
+    engine.exportBenchmarkData("performance_report.csv");
 
+    // 跨平台：讓系統自動打開目前檔案所在的資料夾
+    #ifdef _WIN32
+        system("explorer ."); // 如果是 Windows 系統，就執行這行
+    #elif __APPLE__
+        system("open .");     // 如果是 Mac (Apple) 系統，就執行這行
+    #else
+        cout << "請前往程式執行的目錄尋找 performance_report.csv 檔案\n";
+    #endif
+        
     return 0;
 }
+
